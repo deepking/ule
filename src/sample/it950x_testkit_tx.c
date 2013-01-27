@@ -60,12 +60,12 @@ typedef struct {
     uint8_t  dup_flag;
 } PIDINFO, *PPIDINFO;
 
-int gTransferRate = 0;
-uint32_t gTransferInterval = 0;
-int gRateControl = 0; 
-Dword g_ChannelCapacity = 0;
-Byte NullPacket[188]={0x47,0x1f,0xff,0x1c,0x00,0x00};
-MODULATION_PARAM g_ChannelModulation_Setting;
+static int gTransferRate = 0;
+static uint32_t gTransferInterval = 0;
+static int gRateControl = 0; 
+static Dword g_ChannelCapacity = 0;
+static Byte NullPacket[188]={0x47,0x1f,0xff,0x1c,0x00,0x00};
+static MODULATION_PARAM g_ChannelModulation_Setting;
 
 //static int peek_character = -1;  
 //static struct termios initial_settings, new_settings;  
@@ -1111,7 +1111,8 @@ void testcase()
 {
 }
 
-int main(int argc, char **argv)
+//int main(int argc, char **argv)
+int tx(Byte handleNum)
 {
     int chose, adjustoutputgain, outgainvalue;
     int closeFlag = 0, ret;
@@ -1122,29 +1123,29 @@ int main(int argc, char **argv)
     int MaxGain = 0;
     int MinGain = 0;	
     int Gain = 0;
-    Byte handleNum;
+    //Byte handleNum;
     ModulatorParam param;
     TPS tps;
 
     memset(&param, 0, sizeof(param));
 
-    if(argv[1]==NULL){
-        printf("\n\n================ Open default device handle ==================\n");
-        printf("= To chose another driver handle. Please input handle number =\n");		
-        printf("= Example: ./testkit_it950x_tx 1 -> for usb-it950x1 handle ===\n");
-        printf("==============================================================\n");
-        handleNum = 0;
-    } else {
-        handleNum = atoi(argv[1]);
-        if(atoi(argv[1]) < 0) {
-            printf("\n=============== The bad handle number! Please input again! =============\n\n");
-            printf("\n===================== To chose driver handle sample ====================\n");
-            printf("======= Example: ./testkit_it950x_tx   -> for usb-it950x0 handle =======\n");			
-            printf("======= Example: ./testkit_it950x_tx 1 -> for usb-it950x1 handle =======\n");
-            printf("========================================================================\n");
-            return 0;	
-        }
-    }
+//    if(argv[1]==NULL){
+//        printf("\n\n================ Open default device handle ==================\n");
+//        printf("= To chose another driver handle. Please input handle number =\n");		
+//        printf("= Example: ./testkit_it950x_tx 1 -> for usb-it950x1 handle ===\n");
+//        printf("==============================================================\n");
+//        handleNum = 0;
+//    } else {
+//        handleNum = atoi(argv[1]);
+//        if(atoi(argv[1]) < 0) {
+//            printf("\n=============== The bad handle number! Please input again! =============\n\n");
+//            printf("\n===================== To chose driver handle sample ====================\n");
+//            printf("======= Example: ./testkit_it950x_tx   -> for usb-it950x0 handle =======\n");			
+//            printf("======= Example: ./testkit_it950x_tx 1 -> for usb-it950x1 handle =======\n");
+//            printf("========================================================================\n");
+//            return 0;	
+//        }
+//    }
     if(GetDriverInfo(handleNum) != ERR_NO_ERROR)
         return 0;
 
