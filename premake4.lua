@@ -36,7 +36,7 @@ solution "ULE"
     project "ule"
         kind "StaticLib"
         language "C"
-        targetdir "builc/lib"
+        targetdir "build/lib"
         files { "src/ule/*.h", "src/ule/*.c" }
         --includedirs {"ule", "src/ule", "src/driver", "src/util"}
         links {"driver", "util"}

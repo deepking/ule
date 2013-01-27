@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stdlib.h>
 
 #include "test.h"
 #include "ule/ts.h"
@@ -8,23 +9,43 @@ typedef unsigned char byte;
 
 static void test_ule_tx()
 {
-    SNDUInfo info;
-    byte data[173] = {'h'};
-    ule_init(&info, IPv4, data, 173);
-    uint32_t totalLength = ule_getTotalLength(&info);
+    SNDUInfo snduinfo;
+    byte data[200] = {'h'};
+    memset(data, '0', sizeof(data));
+    
+    ule_init(&snduinfo, IPv4, data, sizeof(data));
+    uint32_t totalLength = ule_getTotalLength(&snduinfo);
     unsigned char pkt[totalLength];
-    ule_encode(&info, pkt, totalLength);
-    debug("%d\n", totalLength);
+    ule_encode(&snduinfo, pkt, totalLength);
+    
+    debug("sndu: totalLength=%d, Len=%d, type=%xd, dataLen=%d\n", 
+        totalLength, snduinfo.length, snduinfo.type, snduinfo.pdu.length);
+    hexdump(pkt, totalLength);
 
-    ULEEncapCtx ctx;
-    ule_initEncapCtx(&ctx);
-    ctx.pid = 0x1FAF;
-    ctx.snduPkt = pkt;
-    ctx.snduLen = totalLength;
+    ULEEncapCtx encapCtx;
+    ule_initEncapCtx(&encapCtx);
+    encapCtx.pid = 0x1FAF;
+    encapCtx.snduPkt = pkt;
+    encapCtx.snduLen = totalLength;
 
-    while (ctx.snduIndex < ctx.snduLen) {
-        ule_padding(&ctx);
-        hexdump(ctx.tsPkt, 188);
+    ULEDemuxCtx demuxCtx;
+    ule_initDemuxCtx(&demuxCtx);
+    demuxCtx.pid = 0x1FAF;
+
+    while (encapCtx.snduIndex < encapCtx.snduLen) {
+        ule_padding(&encapCtx);
+        //hexdump(encapCtx.tsPkt, 188);
+        
+        ule_demux(&demuxCtx, encapCtx.tsPkt, 188);
+        if (demuxCtx.ule_sndu_outbuf) {
+            debug("outbuf: len=%d\n", demuxCtx.ule_sndu_outbuf_len);
+            hexdump(demuxCtx.ule_sndu_outbuf, demuxCtx.ule_sndu_outbuf_len);
+                        
+            // clean & reset outbuf
+            free(demuxCtx.ule_sndu_outbuf);
+            demuxCtx.ule_sndu_outbuf = NULL;
+            demuxCtx.ule_sndu_outbuf_len = 0;
+        }
     }
 }
 

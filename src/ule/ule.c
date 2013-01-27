@@ -18,9 +18,32 @@ static const uint16_t SNDUTypeValue[] = {
     0x86dd, /* IPv6 */
 };
 
-int ule_init(SNDUInfo* info, SNDUType type, unsigned char* data, uint16_t length);
-int ule_encode(SNDUInfo* info, unsigned char* pkt, size_t pktLength);
-void ule_demux(ULEDemuxCtx* priv , const unsigned char *buf, size_t buf_len);
+//int ule_init(SNDUInfo* info, SNDUType type, unsigned char* data, uint16_t length);
+//int ule_encode(SNDUInfo* info, unsigned char* pkt, size_t pktLength);
+//int ule_decode(SNDUInfo* pInfo, unsigned char* pPkt, size_t pktLength);
+//void ule_demux(ULEDemuxCtx* priv , const unsigned char *buf, size_t buf_len);
+//int ule_padding(ULEEncapCtx* ctx);
+
+#define TS_SZ	188
+#define TS_SYNC	0x47
+#define TS_TEI	0x80
+#define TS_SC	0xC0
+#define TS_PUSI	0x40
+#define TS_AF_A	0x20
+#define TS_AF_D	0x10
+
+#define LOG_WARN    "[WARN ] "
+#define LOG_ERR     "[ERROR] "
+#define LOG_INFO    "[INFO ] "
+
+static inline void* xmalloc(size_t size)
+{
+    return malloc(size);
+}
+static inline void xfree(void* p)
+{
+    free(p);
+}
 
 int ule_init(SNDUInfo* info, SNDUType type, unsigned char* data, uint16_t length)
 {
@@ -50,6 +73,18 @@ int ule_encode(SNDUInfo* info, unsigned char* pkt, size_t pktLength)
     return 0;
 }
 
+int ule_decode(SNDUInfo* pInfo, unsigned char* pPkt, size_t pktLength)
+{
+    // TODO: d bit, check CRC
+    pInfo->length = ntohs(*(uint16_t*) pPkt);
+    pInfo->type = ntohs(*(uint16_t*) (pPkt+2));
+    pInfo->pdu.length = pInfo->length - 4;
+    pInfo->pdu.data = xmalloc(pInfo->pdu.length);
+    memcpy(pInfo->pdu.data, (void*)(pPkt+4), pInfo->pdu.length);
+    
+    return 0;
+}
+
 int ule_padding(ULEEncapCtx* ctx)
 {
     ts_reset(ctx->tsPkt);
@@ -71,7 +106,7 @@ int ule_padding(ULEEncapCtx* ctx)
     memcpy((void*) pp, (void*) (ctx->snduPkt + ctx->snduIndex), maxLen);
     ctx->snduIndex += maxLen; // inc sndu index
 
-printf("%d, %d\n", remaining, maxLen);
+//printf("%d, %d\n", remaining, maxLen);
     // All unused bytes MUST be set to the value of 0xFF
     if (maxLen < remaining) {
         memset((void*) (pp + maxLen), 0xFF, remaining - maxLen);
@@ -81,30 +116,10 @@ printf("%d, %d\n", remaining, maxLen);
 
 int ule_packing()
 {
+    // TODO
     return 0;
 }
 
-
-#define TS_SZ	188
-#define TS_SYNC	0x47
-#define TS_TEI	0x80
-#define TS_SC	0xC0
-#define TS_PUSI	0x40
-#define TS_AF_A	0x20
-#define TS_AF_D	0x10
-
-#define LOG_WARN    "[WARN ] "
-#define LOG_ERR     "[ERROR] "
-#define LOG_INFO    "[INFO ] "
-
-static inline void* xmalloc(size_t size)
-{
-    return malloc(size);
-}
-static inline void xfree(void* p)
-{
-    free(p);
-}
 
 /** Prepare for a new ULE SNDU: reset the decoder state. */
 static inline void reset_ule(ULEDemuxCtx *p)
@@ -376,7 +391,7 @@ void ule_demux(ULEDemuxCtx* priv , const unsigned char *buf, size_t buf_len)
 
 		/* Check for complete payload. */
 		if (priv->ule_sndu_remain <= 0) {
-			/* Check CRC32, we've got it in our skb already. */
+			/* TODO: Check CRC32, we've got it in our skb already. */
 			uint16_t ulen = htons(priv->ule_sndu_len);
 			//uint16_t utype = htons(priv->ule_sndu_type);
 			//const uint8_t *tail;
@@ -412,6 +427,8 @@ void ule_demux(ULEDemuxCtx* priv , const unsigned char *buf, size_t buf_len)
 				//dev->stats.rx_packets++;
 				//dev->stats.rx_bytes += priv->ule_skb->len;
 				//netif_rx(priv->ule_skb);
+                priv->ule_sndu_outbuf = priv->ule_skb;
+                priv->ule_sndu_outbuf_len = priv->ule_sndu_len - 4;// 4:CRC
 			}
 //sndu_done:
 			/* Prepare for next SNDU. */

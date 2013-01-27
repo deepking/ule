@@ -22,8 +22,11 @@ typedef enum {
 
 /** subnetwork data unit information */
 typedef struct {
+    /** from the byte following the Type field of the
+     *  SNDU base header up to and including the CRC
+     */
     uint16_t length;
-    SNDUType type;
+    SNDUType type; // IPv4, IPv6
     PDU pdu;
 } SNDUInfo;
 
@@ -55,6 +58,9 @@ typedef struct {
 	int ule_sndu_remain;			/* Nr. of bytes still required for current ULE SNDU. */
 
 	unsigned long ts_count;			/* Current ts cell counter. */
+    
+    unsigned char *ule_sndu_outbuf;
+    unsigned short ule_sndu_outbuf_len;
 } ULEDemuxCtx;
 
 static inline void ule_initEncapCtx(ULEEncapCtx* ctx)
@@ -83,6 +89,9 @@ static inline void ule_initDemuxCtx(ULEDemuxCtx* p)
 	p->ule_dbit = 0xFF;
 
 	p->ts_count = 0;
+    
+    p->ule_sndu_outbuf = NULL;
+    p->ule_sndu_outbuf_len = 0;
 }
 
 /**
@@ -132,6 +141,8 @@ int ule_init(SNDUInfo* info, SNDUType type, unsigned char* data, uint16_t length
  * @return error code
  */
 int ule_encode(SNDUInfo* info, unsigned char* pkt, size_t pktLength);
+
+int ule_decode(SNDUInfo* info, unsigned char* pkt, size_t pktLength);
 
 int ule_padding(ULEEncapCtx* ctx);
 
