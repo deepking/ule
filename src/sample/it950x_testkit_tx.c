@@ -1051,10 +1051,7 @@ static void echoTX(ModulatorParam param)
     g_ITEAPI_StartTransfer();
 
     int nFailCount = 0;
-    Byte buf[188] = {0x47};
     Byte packet[188]={0x47,0x1f,0xaf,0x1c,'h','e','l','l','o','\n','\0'};
-    char* strMsg = "helloworld\n";
-    strncpy(&NullPacket[4], strMsg, strlen(strMsg));
     while (true) {
         Dword nPktSize = 188;
         Dword ret = g_ITEAPI_TxSendTSData((Byte*) packet, nPktSize);
@@ -1067,14 +1064,13 @@ static void echoTX(ModulatorParam param)
             nFailCount = 0;//reset
         }
 
-        //printf("%d %s", ret, buf);
         usleep(1000);
     }
 
     g_ITEAPI_StopTransfer();
 }
 
-static void test_ule(ModulatorParam param)
+static void ule_tx(ModulatorParam param)
 {
     //Disable Custom table packet insertion
     for (int i = 1; i <= 5; i++) {
@@ -1084,31 +1080,54 @@ static void test_ule(ModulatorParam param)
 
     g_ITEAPI_StartTransfer();
     
-    SNDUInfo info;
-    byte data[173] = {'h'};
-    ule_init(&info, IPv4, data, 173);
-    uint32_t totalLength = ule_getTotalLength(&info);
-    unsigned char pkt[totalLength];
-    ule_encode(&info, pkt, totalLength);
-    //hexdump(pkt, totalLength);
-printf("%d\n", totalLength);
+    for (int i = 0; i < 1000; i++) {
+        int nSize = 111 * (i + 1);
+        unsigned char data[nSize];
+        memset(data, '0', nSize);
+        
+        SNDUInfo info;
+        ule_init(&info, IPv4, data, nSize);
+        uint32_t totalLength = ule_getTotalLength(&info);
+        unsigned char pkt[totalLength];
+        ule_encode(&info, pkt, totalLength);
 
-    ULEEncapCtx ctx;
-    ule_initEncapCtx(&ctx);
-    ctx.pid = 0x1FAF;
-    ctx.snduPkt = pkt;
-    ctx.snduLen = totalLength;
+        ULEEncapCtx ctx;
+        ule_initEncapCtx(&ctx);
+        ctx.pid = 0x1FAF;
+        ctx.snduPkt = pkt;
+        ctx.snduLen = totalLength;
 
-    while (ctx.snduIndex < ctx.snduLen) {
-        ule_padding(&ctx);
-        hexdump(ctx.tsPkt, 188);
+        int count = 0;
+        int nFailCount = 0;
+        while (ctx.snduIndex < ctx.snduLen) {
+            ule_padding(&ctx);
+            hexdump(ctx.tsPkt, 188);
+            Dword nPktSize = 188;
+            
+            Dword ret = g_ITEAPI_TxSendTSData((Byte*) ctx.tsPkt, nPktSize);
+            
+            //Byte packet[188]={0x47,0x1f,0xaf,0x1c,'h','e','l','l','o','\n','\0'};
+            //Dword ret = g_ITEAPI_TxSendTSData((Byte*) packet, nPktSize);
+            
+            printf("send pktSize=%d\n", nPktSize);
+            if (ret < 0 || ret == ERR_NOT_IMPLEMENTED) {
+                if (++nFailCount > 50)
+                    break;
+                printf("write fail!\n");
+                usleep(100*1000);
+            }
+            else {
+                nFailCount = 0;// reset
+            }
+            count++;
+            usleep(100*1000);
+        }
+        
+        printf("send: size=%d, count=%d\n", nSize, count);
     }
+    
 
     g_ITEAPI_StopTransfer();
-}
-
-void testcase()
-{
 }
 
 //int main(int argc, char **argv)
@@ -1129,23 +1148,6 @@ int tx(Byte handleNum)
 
     memset(&param, 0, sizeof(param));
 
-//    if(argv[1]==NULL){
-//        printf("\n\n================ Open default device handle ==================\n");
-//        printf("= To chose another driver handle. Please input handle number =\n");		
-//        printf("= Example: ./testkit_it950x_tx 1 -> for usb-it950x1 handle ===\n");
-//        printf("==============================================================\n");
-//        handleNum = 0;
-//    } else {
-//        handleNum = atoi(argv[1]);
-//        if(atoi(argv[1]) < 0) {
-//            printf("\n=============== The bad handle number! Please input again! =============\n\n");
-//            printf("\n===================== To chose driver handle sample ====================\n");
-//            printf("======= Example: ./testkit_it950x_tx   -> for usb-it950x0 handle =======\n");			
-//            printf("======= Example: ./testkit_it950x_tx 1 -> for usb-it950x1 handle =======\n");
-//            printf("========================================================================\n");
-//            return 0;	
-//        }
-//    }
     if(GetDriverInfo(handleNum) != ERR_NO_ERROR)
         return 0;
 
@@ -1155,7 +1157,9 @@ int tx(Byte handleNum)
         printf("\n2. Set Device/Board Type                              ");
         printf("\n3. Set RF output Gain/Attenuation                     ");
         printf("\n4. Transmission Parameter Signalling Cell-id Setting  ");	
-        printf("\n9. Output Test (Streaming a TS File)                  ");
+        printf("\n5. Output Test (Streaming a TS File)                  ");
+        printf("\n6. Send Hello msg                                     ");
+        printf("\n7. ULE test                                           ");
         printf("\n0. Quit                                               ");
         printf("\nEnter Number: ");		
         ret = scanf("%d", &chose);
@@ -1255,15 +1259,12 @@ int tx(Byte handleNum)
             echoTX(param);
             break;
         case 7:
-            test_ule(param);
-            break;
-        case 9:
-            testcase();
+            ule_tx(param);
             break;
         case 0:
             closeFlag = 1;
         }
-    }
+    }// end of while
     g_ITEAPI_Finalize();
 
     return 0;

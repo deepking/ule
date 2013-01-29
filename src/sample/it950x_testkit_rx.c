@@ -3,8 +3,11 @@
 //
 
 #include <stdbool.h>
+#include <string.h>
+#include <ctype.h>
 
 #include "driver/dtv.h"
+#include "ule/ule.h"
 
 #define ERROR(x...)												\
 	do {														\
@@ -95,6 +98,33 @@ static const Param transmissionmode_list [] = {
 static int gChoseBand;
 static int gFreq;
 static uint32_t gTransferInterval = 0;
+
+static void hexdump(const unsigned char *buf, unsigned short len)
+{
+    char str[80], octet[10];
+    int ofs, i, l;
+
+    for (ofs = 0; ofs < len; ofs += 16) {
+        sprintf( str, "%03d: ", ofs );
+
+        for (i = 0; i < 16; i++) {
+            if ((i + ofs) < len)
+                sprintf( octet, "%02x ", buf[ofs + i] );
+            else
+                strcpy(octet, "   ");
+
+            strcat( str, octet );
+        }
+        strcat( str, "  " );
+        l = strlen( str );
+
+        for (i = 0; (i < 16) && ((i + ofs) < len); i++)
+            str[l++] = isprint( buf[ofs + i] ) ? buf[ofs + i] : '.';
+
+        str[l] = '\0';
+        printf("%s\n", str);
+    }
+}
 
 static int GetDriverInfo()
 {
@@ -706,6 +736,71 @@ static void echoRX()
 	DTV_StopCapture();
 }
 
+static void ule_rx()
+{
+    const int nBufSize = 188;
+    int nFailCount = 0;
+    unsigned char buffer[nBufSize];
+    Dword ret;
+    ret = DTV_StartCapture();
+    if (ret != ERR_NO_ERROR) {
+        printf("start error: %d\n", ret);
+    }
+
+    ULEDemuxCtx demuxCtx;
+    ule_initDemuxCtx(&demuxCtx);
+    demuxCtx.pid = 0x1FAF;
+
+    while (true) {
+        Dword r = nBufSize;
+        DTV_GetData(buffer, &r);
+        int count = 0;
+        if (r <= 0) {
+            if (++nFailCount > 100) // 10 sec
+                break;
+            usleep(100000);
+            continue;
+        }
+        if (r != 188) {
+            printf("only read %lu\n", r);
+            break                                                                                                                                                                             
+            ;
+        }
+        if (buffer[0] != 0x47) {
+            //printf("desync (%x, %x, %x, %x) - %lu\n", buffer[0], buffer[1], buffer[2], buffer[3], r);
+            while (buffer[0] != 0x47) {
+                r = 1;
+                DTV_GetData(buffer, &r);
+            }
+            r = 187;
+            DTV_GetData(buffer, &r);//skip
+            continue;
+        }
+        if (ts_getPID(buffer) == 0x1FFF) {
+		    continue;
+        }
+
+        //printf("receive size: %d %d\n", r, (buffer[0] == 0x47) ? true : false);
+        hexdump(buffer, 188);
+        ule_demux(&demuxCtx, buffer, nBufSize);
+        count++;
+        if (demuxCtx.ule_sndu_outbuf != NULL) {
+            printf("recv: szie=%d, count=%d\n", demuxCtx.ule_sndu_outbuf_len, count);
+            //hexdump(demuxCtx.ule_sndu_outbuf, demuxCtx.ule_sndu_outbuf_len);
+                        
+            count = 0;
+            // clean & reset outbuf
+            free(demuxCtx.ule_sndu_outbuf);
+            demuxCtx.ule_sndu_outbuf = NULL;
+            demuxCtx.ule_sndu_outbuf_len = 0;
+        }
+
+        usleep(100);
+        nFailCount = 0;
+    }
+
+    DTV_StopCapture();
+}
 
 //int main(int argc, char **argv)
 int rx(Byte handleNum)
@@ -715,23 +810,6 @@ int rx(Byte handleNum)
 	struct timeval;
 	//Byte handleNum;
 	
-//	if(argv[1]==NULL){
-//		printf("\n\n================ Open default device handle ==================\n");
-//		printf("= To chose another driver handle. Please input handle number =\n");		
-//		printf("= Example: ./testkit_it913x_tx 1 -> for usb-it913x1 handle ===\n");
-//		printf("==============================================================\n");		
-//		handleNum = 0;
-//	} else {
-//		handleNum = atoi(argv[1]);
-//		if(atoi(argv[1]) < 0) {
-//			printf("\n=============== The bad handle number! Please input again! =============\n\n\n");
-//			printf("\n===================== To chose driver handle sample ====================\n");
-//			printf("======= Example: ./testkit_it913x_tx   -> for usb-it913x0 handle =======\n");			
-//			printf("======= Example: ./testkit_it913x_tx 1 -> for usb-it913x1 handle =======\n");
-//			printf("========================================================================\n");
-//			return 0;	
-//		}
-//	}
 	if(DTV_Initialize(handleNum) == ERR_INVALID_DEV_TYPE)
 		return 0;	
 	
@@ -750,7 +828,9 @@ int rx(Byte handleNum)
 		printf("\n3. Record & Analyze Packets  ");
 		printf("\n4. Mutil-Channel Lock Test   ");
 		printf("\n5. Read/Write Register	   ");
-		printf("\n6. Quit                      ");
+        printf("\n6. echo               	   ");
+        printf("\n7. ULE rx             	   ");
+		printf("\n0. Quit                      ");
 		printf("\n=> Please Input Your Choice: ");
 		res = scanf("%d", &chose);
     
@@ -780,13 +860,17 @@ int rx(Byte handleNum)
 			case 5:
 				RWRegister();
 				break;
-
-			case 6:
-				closeFlag = 1;
-				break;
-            case 0:
+            case 6:
                 echoRX();
                 break;
+                
+            case 7:
+                ule_rx();
+                break;
+                
+			case 0:
+				closeFlag = 1;
+				break;
 		}
 	}
 	DTV_Finalize();

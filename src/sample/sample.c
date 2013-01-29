@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 
 extern int tx(unsigned char handleNum);
 extern int rx(unsigned char handleNum);
@@ -22,7 +23,7 @@ int main(int argc, char** argv)
             printf("======= Example: ./testkit_it950x_tx   -> for usb-it950x0 handle =======\n");			
             printf("======= Example: ./testkit_it950x_tx 1 -> for usb-it950x1 handle =======\n");
             printf("========================================================================\n");
-            return 0;	
+            return 0;
         }
     }
     
