@@ -4,8 +4,8 @@
 #include "dtv.h"
 
 static int g_hDriver = 0;
-static int g_hSPIDriverHandle = 0;
-static int g_hPrimaDriverHandle = 0;
+//static int g_hSPIDriverHandle = 0;
+//static int g_hPrimaDriverHandle = 0;
 
 
 

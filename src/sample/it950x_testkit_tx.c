@@ -1,44 +1,19 @@
 //
 // This is a sample testkit for IT950x device (modulator).
 //
-
+//#include <time.h>
+#include <unistd.h>
 #include <stdbool.h>
-#include <ctype.h>
 #include <string.h>
 
 #include "driver/api.h"
 #include "util/crc.h"
+#include "util/debug.h"
 #include "ule/ule.h"
 
 #define LIST_SIZE(x) sizeof(x)/sizeof(Param)
 #define TX_DATA_LEN 65424
 
-static void hexdump(const unsigned char *buf, unsigned short len)
-{
-    char str[80], octet[10];
-    int ofs, i, l;
-
-    for (ofs = 0; ofs < len; ofs += 16) {
-        sprintf( str, "%03d: ", ofs );
-
-        for (i = 0; i < 16; i++) {
-            if ((i + ofs) < len)
-                sprintf( octet, "%02x ", buf[ofs + i] );
-            else
-                strcpy(octet, "   ");
-
-            strcat( str, octet );
-        }
-        strcat( str, "  " );
-        l = strlen( str );
-
-        for (i = 0; (i < 16) && ((i + ofs) < len); i++)
-            str[l++] = isprint( buf[ofs + i] ) ? buf[ofs + i] : '.';
-
-        str[l] = '\0';
-        printf("%s\n", str);
-    }
-}
 
 typedef struct {
     char *name;
@@ -60,7 +35,7 @@ typedef struct {
     uint8_t  dup_flag;
 } PIDINFO, *PPIDINFO;
 
-static int gTransferRate = 0;
+//static int gTransferRate = 0;
 static uint32_t gTransferInterval = 0;
 static int gRateControl = 0; 
 static Dword g_ChannelCapacity = 0;
@@ -863,7 +838,7 @@ rewrite_case1:
             usleep(100);
             printf("rewrite\n");
             goto rewrite_case1;		
-        } else if(ret < 0 || ret == ERR_NOT_IMPLEMENTED) {
+        } else if(ret == 0 || ret == ERR_NOT_IMPLEMENTED) {
             usleep(100000);
             printf("write fail\n");
             k++;
@@ -925,7 +900,7 @@ TX_DataOutputTest_exit:
     if(fileBuf) free (fileBuf);
     if(TsFile) fclose(TsFile);
 }
-
+/*
 static int TxOutOnOff()
 {
     int cho, ret;
@@ -950,7 +925,7 @@ static int TxOutOnOff()
 
     return 0;
 }
-
+*/
 int TxAutoChangeModule()
 {
     int i, k = 0;
@@ -1055,7 +1030,7 @@ static void echoTX(ModulatorParam param)
     while (true) {
         Dword nPktSize = 188;
         Dword ret = g_ITEAPI_TxSendTSData((Byte*) packet, nPktSize);
-        if (ret < 0 || ret == ERR_NOT_IMPLEMENTED) {
+        if (ret == 0 || ret == ERR_NOT_IMPLEMENTED) {
             if (++nFailCount > 50) // 5 sec
                 break;
             printf("write fail\n");
@@ -1080,8 +1055,9 @@ static void ule_tx(ModulatorParam param)
 
     g_ITEAPI_StartTransfer();
     
+    int nTotalCount = 0;
     for (int i = 0; i < 1000; i++) {
-        int nSize = 111 * (i + 1);
+        int nSize = 200;
         unsigned char data[nSize];
         memset(data, '0', nSize);
         
@@ -1109,8 +1085,8 @@ static void ule_tx(ModulatorParam param)
             //Byte packet[188]={0x47,0x1f,0xaf,0x1c,'h','e','l','l','o','\n','\0'};
             //Dword ret = g_ITEAPI_TxSendTSData((Byte*) packet, nPktSize);
             
-            printf("send pktSize=%d\n", nPktSize);
-            if (ret < 0 || ret == ERR_NOT_IMPLEMENTED) {
+            printf("send pktSize=%lu\n", nPktSize);
+            if (ret == 0 || ret == ERR_NOT_IMPLEMENTED) {
                 if (++nFailCount > 50)
                     break;
                 printf("write fail!\n");
@@ -1120,10 +1096,10 @@ static void ule_tx(ModulatorParam param)
                 nFailCount = 0;// reset
             }
             count++;
-            usleep(100*1000);
+            usleep(1000*1000);
         }
-        
-        printf("send: size=%d, count=%d\n", nSize, count);
+        nTotalCount++;
+        printf("send: size=%d, count=%d, total=%d\n", nSize, count, nTotalCount);
     }
     
 

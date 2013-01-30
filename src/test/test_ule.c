@@ -1,9 +1,11 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#include "test.h"
+#include "util/debug.h"
 #include "ule/ts.h"
 #include "ule/ule.h"
+
+#include "test.h"
 
 typedef unsigned char byte;
 
@@ -38,7 +40,7 @@ static void test_ule_tx()
         
         ule_demux(&demuxCtx, encapCtx.tsPkt, 188);
         if (demuxCtx.ule_sndu_outbuf) {
-            debug("outbuf: len=%d\n", demuxCtx.ule_sndu_outbuf_len);
+            debug("outbuf: len=%d", demuxCtx.ule_sndu_outbuf_len);
             hexdump(demuxCtx.ule_sndu_outbuf, demuxCtx.ule_sndu_outbuf_len);
                         
             // clean & reset outbuf

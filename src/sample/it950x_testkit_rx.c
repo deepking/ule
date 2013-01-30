@@ -1,13 +1,14 @@
 //
 // This is a sample testkit for demodulator device.
 //
-
+#include <time.h>
 #include <stdbool.h>
 #include <string.h>
 #include <ctype.h>
 
 #include "driver/dtv.h"
 #include "ule/ule.h"
+#include "util/debug.h"
 
 #define ERROR(x...)												\
 	do {														\
@@ -97,34 +98,7 @@ static const Param transmissionmode_list [] = {
 
 static int gChoseBand;
 static int gFreq;
-static uint32_t gTransferInterval = 0;
-
-static void hexdump(const unsigned char *buf, unsigned short len)
-{
-    char str[80], octet[10];
-    int ofs, i, l;
-
-    for (ofs = 0; ofs < len; ofs += 16) {
-        sprintf( str, "%03d: ", ofs );
-
-        for (i = 0; i < 16; i++) {
-            if ((i + ofs) < len)
-                sprintf( octet, "%02x ", buf[ofs + i] );
-            else
-                strcpy(octet, "   ");
-
-            strcat( str, octet );
-        }
-        strcat( str, "  " );
-        l = strlen( str );
-
-        for (i = 0; (i < 16) && ((i + ofs) < len); i++)
-            str[l++] = isprint( buf[ofs + i] ) ? buf[ofs + i] : '.';
-
-        str[l] = '\0';
-        printf("%s\n", str);
-    }
-}
+//static uint32_t gTransferInterval = 0;
 
 static int GetDriverInfo()
 {
@@ -441,7 +415,7 @@ int dvbtraffic(int save, int count)
     Dword ret;
     ret = DTV_StartCapture();
 	if (ret != ERR_NO_ERROR) {
-	    printf("DTV start error: %d\n", ret);
+	    printf("DTV start error: %lu\n", ret);
     }
 
 	//usleep(2000000);
@@ -514,7 +488,7 @@ int dvbtraffic(int save, int count)
         }
 
 		if (pid == 0x1FAF) {
-		    char tmp[10];
+		    unsigned char tmp[10];
 		    strncpy(tmp, &buffer[4], 10);
 			//printf("\nSave %d KB...\n", packets*188/1024);
 			printf("%s\n", tmp);
@@ -715,7 +689,7 @@ static void echoRX()
     Dword ret;
 	ret = DTV_StartCapture();
 	if (ret != ERR_NO_ERROR) {
-	    printf("start error: %d\n", ret);
+	    printf("start error: %lu\n", ret);
     }
 
     while (true) {
@@ -728,7 +702,7 @@ static void echoRX()
         }
         else {
             nFailCount = 0;
-            printf("receive size: %d %d\n", r, (buffer[0] == 0x47) ? true : false);
+            printf("receive size: %lu %d\n", r, (buffer[0] == 0x47) ? true : false);
         }
         usleep(100);
     }
@@ -744,20 +718,23 @@ static void ule_rx()
     Dword ret;
     ret = DTV_StartCapture();
     if (ret != ERR_NO_ERROR) {
-        printf("start error: %d\n", ret);
+        printf("start error: %lu\n", ret);
     }
 
     ULEDemuxCtx demuxCtx;
     ule_initDemuxCtx(&demuxCtx);
     demuxCtx.pid = 0x1FAF;
 
+    int nTotalCount = 0;
     while (true) {
         Dword r = nBufSize;
         DTV_GetData(buffer, &r);
         int count = 0;
         if (r <= 0) {
-            if (++nFailCount > 100) // 10 sec
+            if (++nFailCount > 100) {// 10 sec
+                debug("fail.");
                 break;
+            }
             usleep(100000);
             continue;
         }
@@ -781,13 +758,14 @@ static void ule_rx()
         }
 
         //printf("receive size: %d %d\n", r, (buffer[0] == 0x47) ? true : false);
-        hexdump(buffer, 188);
+        //hexdump(buffer, 188);
         ule_demux(&demuxCtx, buffer, nBufSize);
         count++;
         if (demuxCtx.ule_sndu_outbuf != NULL) {
-            printf("recv: szie=%d, count=%d\n", demuxCtx.ule_sndu_outbuf_len, count);
+            nTotalCount++;
+            printf("recv: szie=%d, count=%d, Total=%d\n", demuxCtx.ule_sndu_outbuf_len, count, nTotalCount);
             //hexdump(demuxCtx.ule_sndu_outbuf, demuxCtx.ule_sndu_outbuf_len);
-                        
+
             count = 0;
             // clean & reset outbuf
             free(demuxCtx.ule_sndu_outbuf);

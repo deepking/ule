@@ -2,8 +2,10 @@
 #include <string.h>
 #include <ctype.h>
 
-#include "test.h"
+#include "util/debug.h"
 #include "ule/ts.h"
+
+#include "test.h"
 
 void test_ts()
 {
