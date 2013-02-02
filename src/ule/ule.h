@@ -142,8 +142,6 @@ int ule_init(SNDUInfo* info, SNDUType type, unsigned char* data, uint16_t length
  */
 int ule_encode(SNDUInfo* info, unsigned char* pkt, size_t pktLength);
 
-int ule_decode(SNDUInfo* info, unsigned char* pkt, size_t pktLength);
-
 int ule_padding(ULEEncapCtx* ctx);
 
 void ule_demux(ULEDemuxCtx* priv , const unsigned char *buf, size_t buf_len);

@@ -1054,9 +1054,12 @@ static void ule_tx(ModulatorParam param)
     }
 
     g_ITEAPI_StartTransfer();
+    int temp = 0;
+    printf("\n=> Please Input Send count: ");
+    scanf("%d", &temp);
     
     int nTotalCount = 0;
-    for (int i = 0; i < 1000; i++) {
+    for (int i = 0; i < temp; i++) {
         int nSize = 200;
         unsigned char data[nSize];
         memset(data, '0', nSize);
@@ -1077,7 +1080,7 @@ static void ule_tx(ModulatorParam param)
         int nFailCount = 0;
         while (ctx.snduIndex < ctx.snduLen) {
             ule_padding(&ctx);
-            hexdump(ctx.tsPkt, 188);
+            //hexdump(ctx.tsPkt, 188);
             Dword nPktSize = 188;
             
             Dword ret = g_ITEAPI_TxSendTSData((Byte*) ctx.tsPkt, nPktSize);
@@ -1096,7 +1099,7 @@ static void ule_tx(ModulatorParam param)
                 nFailCount = 0;// reset
             }
             count++;
-            usleep(1000*1000);
+            usleep(100*1000);
         }
         nTotalCount++;
         printf("send: size=%d, count=%d, total=%d\n", nSize, count, nTotalCount);

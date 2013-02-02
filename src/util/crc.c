@@ -57,3 +57,17 @@ uint32_t crc32(const unsigned char *pBuffer, int nLength)
     return crc;
 }
 
+uint32_t crc32ForUle(const unsigned char* pHeader, const unsigned char *pBuffer, int nLength)
+{
+    uint32_t crc = 0xFFFFFFFF;
+    
+    for (int i = 0; i < 4; i++) {
+        crc = sc_CRCTab[((crc >> 24) ^ *pHeader++) & 0xff] ^ (crc << 8);
+    }
+    
+    while (nLength--)
+        crc = sc_CRCTab[((crc >> 24) ^ *pBuffer++) & 0xff] ^ (crc << 8);
+
+    return crc;
+}
+

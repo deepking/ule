@@ -73,18 +73,6 @@ int ule_encode(SNDUInfo* info, unsigned char* pkt, size_t pktLength)
     return 0;
 }
 
-int ule_decode(SNDUInfo* pInfo, unsigned char* pPkt, size_t pktLength)
-{
-    // TODO: d bit, check CRC
-    pInfo->length = ntohs(*(uint16_t*) pPkt);
-    pInfo->type = ntohs(*(uint16_t*) (pPkt+2));
-    pInfo->pdu.length = pInfo->length - 4;
-    pInfo->pdu.data = xmalloc(pInfo->pdu.length);
-    memcpy(pInfo->pdu.data, (void*)(pPkt+4), pInfo->pdu.length);
-    
-    return 0;
-}
-
 int ule_padding(ULEEncapCtx* ctx)
 {
     ts_reset(ctx->tsPkt);
@@ -383,7 +371,7 @@ void ule_demux(ULEDemuxCtx* priv , const unsigned char *buf, size_t buf_len)
 		}
 
 		/* Copy data into our current skb. */
-		how_much = min(priv->ule_sndu_remain, (int)ts_remain);
+		how_much = min(priv->ule_sndu_remain, (int) ts_remain);
 		memcpy(priv->ule_skb + priv->ule_sndu_len - priv->ule_sndu_remain, from_where, how_much);
 		priv->ule_sndu_remain -= how_much;
 		ts_remain -= how_much;
@@ -393,7 +381,7 @@ void ule_demux(ULEDemuxCtx* priv , const unsigned char *buf, size_t buf_len)
 		if (priv->ule_sndu_remain <= 0) {
 			/* TODO: Check CRC32, we've got it in our skb already. */
 			uint16_t ulen = htons(priv->ule_sndu_len);
-			//uint16_t utype = htons(priv->ule_sndu_type);
+            uint16_t utype = htons(priv->ule_sndu_type);
 			//const uint8_t *tail;
 
 			uint32_t ule_crc = ~0L, expected_crc = ~0L;
@@ -402,6 +390,17 @@ void ule_demux(ULEDemuxCtx* priv , const unsigned char *buf, size_t buf_len)
 				 * if it was set originally. */
 				ulen |= htons(0x8000);
 			}
+            
+            unsigned char uleHeader[4];
+            *((uint16_t*) uleHeader) = ulen;
+            *((uint16_t*) (uleHeader + 2)) = utype;
+            
+            // calculate crc
+            ule_crc = crc32ForUle(uleHeader, priv->ule_skb, priv->ule_sndu_len - 4);
+            
+            // get crc from payload
+            expected_crc = *(uint32_t*)(priv->ule_skb + priv->ule_sndu_len - 4);
+            expected_crc = ntohl(expected_crc);
 
 			if (ule_crc != expected_crc) {
 				printf(LOG_WARN "%lu: CRC32 check FAILED: %08x / %08x, SNDU len %d type %#x, ts_remain %d, next 2: %x.\n",
@@ -414,10 +413,6 @@ void ule_demux(ULEDemuxCtx* priv , const unsigned char *buf, size_t buf_len)
 			} else {
 				/* CRC32 verified OK. */
 
-				/* CRC32 was OK. Remove it from skb. */
-				//priv->ule_skb->tail -= 4;
-				//priv->ule_skb->len -= 4;
-
 				/* Stuff into kernel's protocol stack. */
 				//priv->ule_skb->protocol = dvb_net_eth_type_trans(priv->ule_skb, dev);
 				/* If D-bit is set (i.e. destination MAC address not present),
@@ -426,7 +421,7 @@ void ule_demux(ULEDemuxCtx* priv , const unsigned char *buf, size_t buf_len)
 					priv->ule_skb->pkt_type = PACKET_HOST; */
 				//dev->stats.rx_packets++;
 				//dev->stats.rx_bytes += priv->ule_skb->len;
-				//netif_rx(priv->ule_skb);
+                /* CRC32 was OK. Remove it from skb. */
                 priv->ule_sndu_outbuf = priv->ule_skb;
                 priv->ule_sndu_outbuf_len = priv->ule_sndu_len - 4;// 4:CRC
 			}

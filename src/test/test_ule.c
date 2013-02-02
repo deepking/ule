@@ -36,7 +36,7 @@ static void test_ule_tx()
 
     while (encapCtx.snduIndex < encapCtx.snduLen) {
         ule_padding(&encapCtx);
-        //hexdump(encapCtx.tsPkt, 188);
+        hexdump(encapCtx.tsPkt, 188);
         
         ule_demux(&demuxCtx, encapCtx.tsPkt, 188);
         if (demuxCtx.ule_sndu_outbuf) {

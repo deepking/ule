@@ -739,7 +739,7 @@ static void ule_rx()
             continue;
         }
         if (r != 188) {
-            printf("only read %lu\n", r);
+            debug("only read %lu", r);
             break                                                                                                                                                                             
             ;
         }
@@ -753,8 +753,12 @@ static void ule_rx()
             DTV_GetData(buffer, &r);//skip
             continue;
         }
-        if (ts_getPID(buffer) == 0x1FFF) {
+        uint16_t pidFromBuf = ts_getPID(buffer);
+        if (pidFromBuf == 0x1FFF) {
 		    continue;
+        }
+        if (pidFromBuf != demuxCtx.pid) {
+            continue;
         }
 
         //printf("receive size: %d %d\n", r, (buffer[0] == 0x47) ? true : false);
@@ -764,7 +768,7 @@ static void ule_rx()
         if (demuxCtx.ule_sndu_outbuf != NULL) {
             nTotalCount++;
             printf("recv: szie=%d, count=%d, Total=%d\n", demuxCtx.ule_sndu_outbuf_len, count, nTotalCount);
-            //hexdump(demuxCtx.ule_sndu_outbuf, demuxCtx.ule_sndu_outbuf_len);
+            hexdump(demuxCtx.ule_sndu_outbuf, demuxCtx.ule_sndu_outbuf_len);
 
             count = 0;
             // clean & reset outbuf
