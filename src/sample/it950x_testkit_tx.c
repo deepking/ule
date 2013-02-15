@@ -45,7 +45,7 @@ static MODULATION_PARAM g_ChannelModulation_Setting;
 //static int peek_character = -1;  
 //static struct termios initial_settings, new_settings;  
 
-int kbhit(void)  
+static int kbhit(void)  
 {  
     struct termios oldt, newt;  
     int ch;  
@@ -235,7 +235,7 @@ static long TX_SetChannelTransmissionParameters(ModulatorParam *param)
     return(ChannelCapacity);
 }
 
-intmax_t GetFileSize(const char* filePath)
+static intmax_t GetFileSize(const char* filePath)
 {
     struct stat statbuf;
 
@@ -244,6 +244,7 @@ intmax_t GetFileSize(const char* filePath)
     return (intmax_t) statbuf.st_size;
 }
 
+/*
 uint32_t TxTransferTimeDelay(struct timeval start, struct timeval end)
 {
     uint32_t diff, delay;
@@ -257,10 +258,10 @@ uint32_t TxTransferTimeDelay(struct timeval start, struct timeval end)
     else
         return 0;
 }
-
+*/
 
 //A safe but slow way to calculate stream bit rate
-Dword Get_DataBitRate(char *FilePath)
+static Dword Get_DataBitRate(char *FilePath)
 {
     int mPID = 0, i;
     const int BUFSIZE = 512*188; 
@@ -403,7 +404,7 @@ Dword Get_DataBitRate(char *FilePath)
 
 
 //Analyze PAT TSID and SID
-long int Get_PAT_TSID_SID(FILE * TsFile,Byte *TSid,Byte *Sid,intmax_t FileLength)
+static long int Get_PAT_TSID_SID(FILE * TsFile,Byte *TSid,Byte *Sid,intmax_t FileLength)
 {
     //int mPID = 0;
     unsigned i;
@@ -498,7 +499,7 @@ long int Get_PAT_TSID_SID(FILE * TsFile,Byte *TSid,Byte *Sid,intmax_t FileLength
 
 }
 
-void SetPeriodicCustomPacket(Handle TsFile, intmax_t FileLength, ModulatorParam param)
+static void SetPeriodicCustomPacket(Handle TsFile, intmax_t FileLength, ModulatorParam param)
 {
     //Test Periodical Custom Packets Insertion, (for SI/PSI table insertion)
     //Sample SDT
@@ -674,7 +675,7 @@ void SetPeriodicCustomPacket(Handle TsFile, intmax_t FileLength, ModulatorParam 
     }
 }
 
-unsigned long GetTickCount()
+static unsigned long GetTickCount()
 {
     //struct tms tm;
     //return (times(&tm)*1000)/sysconf(_SC_CLK_TCK); // Return ticks. One tick = 1/1000 seconds.
@@ -696,14 +697,14 @@ unsigned long GetTickCount()
     //printf("%d\n", clock());
     //return clock(); 
 }
-
+/*
 void mydelay(Dword delay)
 {
     clock_t goal = delay * (CLOCKS_PER_SEC /1000) + clock();
     while(goal > clock());
 }
-
-void TX_DataOutputTest(ModulatorParam param)
+*/
+static void TX_DataOutputTest(ModulatorParam param)
 {
     int input = 0;
     Handle TsFile = NULL;
@@ -926,6 +927,7 @@ static int TxOutOnOff()
     return 0;
 }
 */
+/*
 int TxAutoChangeModule()
 {
     int i, k = 0;
@@ -1014,8 +1016,9 @@ rewrite:
     //}
     return 0;
 }
+*/
 
-static void echoTX(ModulatorParam param)
+static void TX_echo(ModulatorParam param)
 {
     //Disable Custom table packet insertion
     for (int i = 1; i <= 5; i++) {
@@ -1045,7 +1048,7 @@ static void echoTX(ModulatorParam param)
     g_ITEAPI_StopTransfer();
 }
 
-static void ule_tx(ModulatorParam param)
+static void TX_ule(ModulatorParam param)
 {
     //Disable Custom table packet insertion
     for (int i = 1; i <= 5; i++) {
@@ -1078,7 +1081,11 @@ static void ule_tx(ModulatorParam param)
 
         int count = 0;
         int nFailCount = 0;
+        unsigned long loopStartTime = 0;
+        unsigned long totalBytesSent = 0;
+        unsigned long tsDataRate = 9000 * 1000;//Data Bit rate in Kbps
         while (ctx.snduIndex < ctx.snduLen) {
+            loopStartTime = GetTickCount();
             ule_padding(&ctx);
             //hexdump(ctx.tsPkt, 188);
             Dword nPktSize = 188;
@@ -1103,9 +1110,25 @@ static void ule_tx(ModulatorParam param)
         }
         nTotalCount++;
         printf("send: size=%d, count=%d, total=%d\n", nSize, count, nTotalCount);
+
+        //Data Rate Control, IF the TS data rate is less than channel modulation data rate
+        //and excluding the first time check (divide by zero check) 
+        while ((tsDataRate < g_ChannelCapacity - 1024) && totalBytesSent) {
+            if (GetTickCount() == loopStartTime) continue;
+
+            unsigned long outputDataRate = totalBytesSent * 8 / (GetTickCount() - loopStartTime) * 1000;
+            if (outputDataRate <= tsDataRate) {
+                break;
+            }
+            else {
+                struct timespec req = {0};
+                req.tv_sec = 0;     
+                req.tv_nsec = 1;    
+                nanosleep(&req, &req);
+            }
+        }
     }
     
-
     g_ITEAPI_StopTransfer();
 }
 
@@ -1235,10 +1258,10 @@ int tx(Byte handleNum)
             TX_DataOutputTest(param);				
             break;
         case 6:
-            echoTX(param);
+            TX_echo(param);
             break;
         case 7:
-            ule_tx(param);
+            TX_ule(param);
             break;
         case 0:
             closeFlag = 1;
