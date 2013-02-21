@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <ctype.h>
+#include <stdio.h>
 
 #include "driver/dtv.h"
 #include "ule/ule.h"
@@ -683,9 +684,11 @@ static int RWRegister()
 
 static void echoRX()
 {
+    FILE* fileOut = fopen("rx_echo.out", "w+");
     const int nBufSize = 188;
     int nFailCount = 0;
     unsigned char buffer[nBufSize];
+    memset(buffer, 0, 188);
     Dword ret;
     ret = DTV_StartCapture();
     if (ret != ERR_NO_ERROR) {
@@ -698,12 +701,53 @@ static void echoRX()
         if (r <= 0) {
             if (++nFailCount > 100) // 10 sec
                 break;
-            usleep(100000);
+            usleep(100*1000);
+            continue;
         }
         else {
             nFailCount = 0;
-            printf("receive size: %lu %d\n", r, (buffer[0] == 0x47) ? true : false);
         }
+
+        if (r != 188) {
+            debug("only read %lu", r);
+            break; 
+        }
+        if (buffer[0] != 0x47) {
+            //debug("desync (%x, %x, %x, %x) - %lu\n", buffer[0], buffer[1], buffer[2], buffer[3], r);
+            while (buffer[0] != 0x47) {
+                r = 1;
+                DTV_GetData(buffer, &r);
+                if (r <= 0) {
+                    usleep(100*1000);
+                    continue;
+                }
+                if (r != 1) {
+                    debug("not only 1 but %lu", r);
+                    continue;
+                }
+            }
+
+            // remaining
+            r = 187;
+            DTV_GetData(buffer+1, &r);
+            if (r != 187) {
+                debug("sync error read %lu", r);
+                continue;
+            }
+            continue;
+        }
+
+        uint16_t pidFromBuf = ts_getPID(buffer);
+        if (pidFromBuf == 0x1FFF) {
+            continue;
+        }
+        if (pidFromBuf != 0x1FAF) {
+            continue;
+        }
+
+        fprintf(fileOut, "%s\n", buffer+4);
+        fflush(fileOut);//XXX
+        printf("%s\n", buffer+4);
         usleep(100);
     }
 
@@ -715,10 +759,14 @@ static void ule_rx()
     const int nBufSize = 188;
     int nFailCount = 0;
     unsigned char buffer[nBufSize];
+    FILE* fileOut = fopen("rx.out", "w+b");
     Dword ret;
+
     ret = DTV_StartCapture();
     if (ret != ERR_NO_ERROR) {
-        printf("start error: %lu\n", ret);
+        debug("start error: %lu", ret);
+    } else {
+        debug("start success");
     }
 
     ULEDemuxCtx demuxCtx;
@@ -726,33 +774,50 @@ static void ule_rx()
     demuxCtx.pid = 0x1FAF;
 
     int nTotalCount = 0;
+    int8_t tscc = 0;
     while (true) {
+        memset(buffer, 0, nBufSize);
         Dword r = nBufSize;
         DTV_GetData(buffer, &r);
-        int count = 0;
         if (r <= 0) {
             if (++nFailCount > 100) {// 10 sec
                 debug("fail.");
                 break;
             }
-            usleep(100000);
+            usleep(100 * 1000);
             continue;
+        } else {
+            nFailCount = 0; // reset
         }
+
         if (r != 188) {
             debug("only read %lu", r);
-            break                                                                                                                                                                             
-                ;
+            break; 
         }
         if (buffer[0] != 0x47) {
-            //printf("desync (%x, %x, %x, %x) - %lu\n", buffer[0], buffer[1], buffer[2], buffer[3], r);
+            //debug("desync (%x, %x, %x, %x) - %lu\n", buffer[0], buffer[1], buffer[2], buffer[3], r);
             while (buffer[0] != 0x47) {
                 r = 1;
                 DTV_GetData(buffer, &r);
+                if (r <= 0) {
+                    usleep(100*1000);
+                    continue;
+                }
+                if (r != 1) {
+                    debug("not only read 1 but %lu", r);
+                    continue;
+                }
             }
+
+            // remaining
             r = 187;
-            DTV_GetData(buffer, &r);//skip
-            continue;
+            DTV_GetData(buffer+1, &r);
+            if (r != 187) {
+                debug("sync error read %lu", r);
+                continue;
+            }
         }
+
         uint16_t pidFromBuf = ts_getPID(buffer);
         if (pidFromBuf == 0x1FFF) {
             continue;
@@ -761,16 +826,33 @@ static void ule_rx()
             continue;
         }
 
-        //printf("receive size: %d %d\n", r, (buffer[0] == 0x47) ? true : false);
-        //hexdump(buffer, 188);
+        // check tscc
+        //
+        int8_t tsccNew = ts_getContinuityCounter(buffer);
+        if (tsccNew - tscc == 1) {
+            tscc++;
+        } else if (tsccNew - tscc == -15) {
+            tscc = 0;
+        } else {
+            debug("tscc is discontinuous curr=%d, new=%d", tscc, tsccNew);
+
+            if (tsccNew <= tscc) {
+                continue;//skip
+            } else {
+                tscc = tsccNew;
+                ule_resetDemuxCtx(&demuxCtx);
+            }
+        }
+
+        //debug("start demux");
         ule_demux(&demuxCtx, buffer, nBufSize);
-        count++;
         if (demuxCtx.ule_sndu_outbuf != NULL) {
             nTotalCount++;
-            printf("recv: szie=%d, count=%d, Total=%d\n", demuxCtx.ule_sndu_outbuf_len, count, nTotalCount);
-            hexdump(demuxCtx.ule_sndu_outbuf, demuxCtx.ule_sndu_outbuf_len);
+            printf("recv: szie=%d, Total=%d\n", demuxCtx.ule_sndu_outbuf_len, nTotalCount);
+            //hexdump(demuxCtx.ule_sndu_outbuf, demuxCtx.ule_sndu_outbuf_len);
+            fprintf(fileOut, "%s\n", demuxCtx.ule_sndu_outbuf);
+            fflush(fileOut);
 
-            count = 0;
             // clean & reset outbuf
             free(demuxCtx.ule_sndu_outbuf);
             demuxCtx.ule_sndu_outbuf = NULL;
@@ -778,8 +860,8 @@ static void ule_rx()
         }
 
         usleep(100);
-        nFailCount = 0;
-    }
+    }//end while(true)
+    debug("stop ule rx");
 
     DTV_StopCapture();
 }

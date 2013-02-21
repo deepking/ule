@@ -12,7 +12,8 @@ int main(int argc, char** argv)
     if(argv[1]==NULL){
         printf("\n\n================ Open default device handle ==================\n");
         printf("= To chose another driver handle. Please input handle number =\n");		
-        printf("= Example: ./testkit_it950x_tx 1 -> for usb-it950x1 handle ===\n");
+        printf("= Example: %s 1 0 -> 1 for usb-it950x1 handle\n", argv[0]);
+        printf("= second: 0 tx mode, 1 rx mode ===\n");
         printf("==============================================================\n");
         handleNum = 0;
     } else {

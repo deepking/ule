@@ -45,20 +45,20 @@ typedef struct {
 
 /** ule demultiplexing context */
 typedef struct {
-	uint16_t pid;
-	int need_pusi;				/* Set to 1, if synchronization on PUSI required. */
-	unsigned char tscc;			/* TS continuity counter after sync on PUSI. */
+    uint16_t pid;
+    int need_pusi;				/* Set to 1, if synchronization on PUSI required. */
+    unsigned char tscc;			/* TS continuity counter after sync on PUSI. */
 
-	unsigned char *ule_skb;		/* ULE SNDU decodes into this buffer. */
-	//unsigned char *ule_next_hdr;		/* Pointer into skb to next ULE extension header. */
-	unsigned short ule_sndu_len;		/* ULE SNDU length in bytes, w/o D-Bit. */
-	unsigned short ule_sndu_type;		/* ULE SNDU type field, complete. */
-	unsigned char ule_sndu_type_1;		/* ULE SNDU type field, if split across 2 TS cells. */
-	unsigned char ule_dbit;			/* Whether the DestMAC address present or not (bit is set). */
-	int ule_sndu_remain;			/* Nr. of bytes still required for current ULE SNDU. */
+    unsigned char *ule_skb;		/* ULE SNDU decodes into this buffer. */
+    //unsigned char *ule_next_hdr;		/* Pointer into skb to next ULE extension header. */
+    unsigned short ule_sndu_len;		/* ULE SNDU length in bytes, w/o D-Bit. */
+    unsigned short ule_sndu_type;		/* ULE SNDU type field, complete. */
+    unsigned char ule_sndu_type_1;		/* ULE SNDU type field, if split across 2 TS cells. */
+    unsigned char ule_dbit;			/* Whether the DestMAC address present or not (bit is set). */
+    int ule_sndu_remain;			/* Nr. of bytes still required for current ULE SNDU. */
 
-	unsigned long ts_count;			/* Current ts cell counter. */
-    
+    unsigned long ts_count;			/* Current ts cell counter. */
+
     unsigned char *ule_sndu_outbuf;
     unsigned short ule_sndu_outbuf_len;
 } ULEDemuxCtx;
@@ -80,16 +80,16 @@ static inline void ule_initDemuxCtx(ULEDemuxCtx* p)
     p->need_pusi = 1;
     p->tscc = 0;
 
-	p->ule_skb = NULL;
-	//p->ule_next_hdr = NULL;
-	p->ule_sndu_len = 0;
-	p->ule_sndu_type = 0;
-	p->ule_sndu_type_1 = 0;
-	p->ule_sndu_remain = 0;
-	p->ule_dbit = 0xFF;
+    p->ule_skb = NULL;
+    //p->ule_next_hdr = NULL;
+    p->ule_sndu_len = 0;
+    p->ule_sndu_type = 0;
+    p->ule_sndu_type_1 = 0;
+    p->ule_sndu_remain = 0;
+    p->ule_dbit = 0xFF;
 
-	p->ts_count = 0;
-    
+    p->ts_count = 0;
+
     p->ule_sndu_outbuf = NULL;
     p->ule_sndu_outbuf_len = 0;
 }
@@ -145,5 +145,7 @@ int ule_encode(SNDUInfo* info, unsigned char* pkt, size_t pktLength);
 int ule_padding(ULEEncapCtx* ctx);
 
 void ule_demux(ULEDemuxCtx* priv , const unsigned char *buf, size_t buf_len);
+
+void ule_resetDemuxCtx(ULEDemuxCtx* p);
 
 #endif /* end of include guard: ULE_H */

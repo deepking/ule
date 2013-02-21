@@ -2,31 +2,31 @@
 solution "ULE"
 
     ------------------------------------------------------------------
-	-- setup common settings
-	------------------------------------------------------------------
-	configurations { "Debug", "Release" }
-	--flags { "ExtraWarnings", "FatalWarnings", "FloatFast" }
-	location "build"
-	includedirs {"src"}
+    -- setup common settings
+    ------------------------------------------------------------------
+    configurations { "Debug", "Release" }
+    --flags { "ExtraWarnings", "FatalWarnings", "FloatFast" }
+    location "build"
+    includedirs {"src"}
     targetdir "build/bin"
 
-	------------------------------------------------------------------
-	-- setup the build configs
-	------------------------------------------------------------------
-	configuration "Debug"
-		defines { "DEBUG" }
-		flags { "Symbols" }
-		targetsuffix "_d"
-        buildoptions { "-Wall", "-std=c99" }
+    ------------------------------------------------------------------
+    -- setup the build configs
+    ------------------------------------------------------------------
+    configuration "Debug"
+    defines { "DEBUG" }
+    flags { "Symbols" }
+    targetsuffix "_d"
+    buildoptions { "-Wall", "-std=c99" }
 
-	configuration "Release"
-		defines { "NDEBUG" }
-		flags { "Optimize" }
-        buildoptions { "-Wall", "-std=c99" }
+    configuration "Release"
+    defines { "NDEBUG" }
+    flags { "Optimize" }
+    buildoptions { "-Wall", "-std=c99" }
 
-	------------------------------------------------------------------
-	-- project settings
-	------------------------------------------------------------------
+    ------------------------------------------------------------------
+    -- project settings
+    ------------------------------------------------------------------
     -- it950x driver
     project "driver"
         kind "StaticLib"

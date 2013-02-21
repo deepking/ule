@@ -1026,24 +1026,74 @@ static void TX_echo(ModulatorParam param)
             printf("g_ITEAPI_TxSetFwPSITableTimer  %d fail\n",i);
     }
 
+    int temp = 0;
+    printf("\n=> Please Input Send count: ");
+    scanf("%d", &temp);
+
     g_ITEAPI_StartTransfer();
 
     int nFailCount = 0;
-    Byte packet[188]={0x47,0x1f,0xaf,0x1c,'h','e','l','l','o','\n','\0'};
-    while (true) {
+    //Byte packet[188]= {0x47,0x1f,0xaf,0x1c,'h','e','l','l','o','\n','\0'};
+    Byte packet[188];
+    memset(packet, 0, 188);
+    packet[0] = 0x47;
+    packet[1] = 0x1f;
+    packet[2] = 0xaf;
+    packet[3] = 0x10;
+
+    unsigned long loopStartTime = GetTickCount();
+    unsigned long totalBytesSent = 0;
+    const unsigned long tsDataRate = 9000 * 1000;//TODO: Data Bit rate in Kbps
+    for (int i = 0; i < temp; i++) {
         Dword nPktSize = 188;
-        Dword ret = g_ITEAPI_TxSendTSData((Byte*) packet, nPktSize);
-        if (ret == 0 || ret == ERR_NOT_IMPLEMENTED) {
+        sprintf(packet+4, "%d", i);
+
+        Dword ret;
+echo_rewrite:
+        ret = g_ITEAPI_TxSendTSData((Byte*) packet, nPktSize);
+
+        if (ret == 0 && (nPktSize >= 188)) {
+            usleep(100);
+            printf("rewrite\n");
+            goto echo_rewrite;
+        }
+        else if (ret == 0 || ret == ERR_NOT_IMPLEMENTED) {
             if (++nFailCount > 50) // 5 sec
                 break;
             printf("write fail\n");
             usleep(100*1000);
         } else {
+            printf("%d\n", i);
             nFailCount = 0;//reset
+            totalBytesSent += nPktSize;
         }
 
-        usleep(1000);
+        if (nPktSize < 188) {
+            debug("send < 188");
+        }
+
+        usleep(100*1000);
+
+        //Data Rate Control, IF the TS data rate is less than channel modulation data rate
+        //and excluding the first time check (divide by zero check) 
+        /* while ((tsDataRate < g_ChannelCapacity - 1024) && totalBytesSent) { */
+        /*     if (GetTickCount() == loopStartTime) */
+        /*         continue; */
+
+        /*     unsigned long outputDataRate = totalBytesSent * 8 / (GetTickCount() - loopStartTime) * 1000; */
+        /*     if (outputDataRate <= tsDataRate) { */
+        /*         break; */
+        /*     } else { */
+        /*         debug("data rate control: %lu", outputDataRate); */
+        /*         struct timespec req = {0}; */
+        /*         req.tv_sec = 0;      */
+        /*         req.tv_nsec = 1;     */
+        /*         nanosleep(&req, &req); */
+        /*     } */
+        /* } */
     }
+
+    //usleep(10*1000*1000);
 
     g_ITEAPI_StopTransfer();
 }
@@ -1061,41 +1111,41 @@ static void TX_ule(ModulatorParam param)
     printf("\n=> Please Input Send count: ");
     scanf("%d", &temp);
     
+    // setup ts pid
+    ULEEncapCtx ctx;
+    ule_initEncapCtx(&ctx);
+    ctx.pid = 0x1FAF;
+
     int nTotalCount = 0;
+    int nFailCount = 0;
+    unsigned long loopStartTime = 0;
+    unsigned long totalBytesSent = 0;
+    const unsigned long tsDataRate = 9000 * 1000;//Data Bit rate in Kbps
     for (int i = 0; i < temp; i++) {
-        int nSize = 200;
-        unsigned char data[nSize];
-        memset(data, '0', nSize);
-        
+        // data
+        int nSize = 20;
+        char data[nSize];
+        memset(data, 0, sizeof(data));
+        sprintf(data, "%d", i);
+
+        // sndu packet
         SNDUInfo info;
         ule_init(&info, IPv4, data, nSize);
         uint32_t totalLength = ule_getTotalLength(&info);
         unsigned char pkt[totalLength];
         ule_encode(&info, pkt, totalLength);
 
-        ULEEncapCtx ctx;
-        ule_initEncapCtx(&ctx);
-        ctx.pid = 0x1FAF;
         ctx.snduPkt = pkt;
         ctx.snduLen = totalLength;
+        ctx.snduIndex = 0;
 
-        int count = 0;
-        int nFailCount = 0;
-        unsigned long loopStartTime = 0;
-        unsigned long totalBytesSent = 0;
-        unsigned long tsDataRate = 9000 * 1000;//Data Bit rate in Kbps
         while (ctx.snduIndex < ctx.snduLen) {
             loopStartTime = GetTickCount();
             ule_padding(&ctx);
-            //hexdump(ctx.tsPkt, 188);
             Dword nPktSize = 188;
             
             Dword ret = g_ITEAPI_TxSendTSData((Byte*) ctx.tsPkt, nPktSize);
             
-            //Byte packet[188]={0x47,0x1f,0xaf,0x1c,'h','e','l','l','o','\n','\0'};
-            //Dword ret = g_ITEAPI_TxSendTSData((Byte*) packet, nPktSize);
-            
-            printf("send pktSize=%lu\n", nPktSize);
             if (ret == 0 || ret == ERR_NOT_IMPLEMENTED) {
                 if (++nFailCount > 50)
                     break;
@@ -1104,23 +1154,24 @@ static void TX_ule(ModulatorParam param)
             }
             else {
                 nFailCount = 0;// reset
+                totalBytesSent += nPktSize;
             }
-            count++;
-            usleep(100*1000);
+            usleep(100);
         }
         nTotalCount++;
-        printf("send: size=%d, count=%d, total=%d\n", nSize, count, nTotalCount);
+        printf("send: size=%d, total=%d, tscc=%d\n", nSize, nTotalCount, ctx.tscc);
 
         //Data Rate Control, IF the TS data rate is less than channel modulation data rate
         //and excluding the first time check (divide by zero check) 
         while ((tsDataRate < g_ChannelCapacity - 1024) && totalBytesSent) {
-            if (GetTickCount() == loopStartTime) continue;
+            if (GetTickCount() == loopStartTime)
+                continue;
 
             unsigned long outputDataRate = totalBytesSent * 8 / (GetTickCount() - loopStartTime) * 1000;
             if (outputDataRate <= tsDataRate) {
                 break;
-            }
-            else {
+            } else {
+                //debug("data rate control: %lu", outputDataRate);
                 struct timespec req = {0};
                 req.tv_sec = 0;     
                 req.tv_nsec = 1;    
